@@ -56,9 +56,28 @@ function goHistory(delta: -1 | 1) {
   navHistoryIndex = targetIndex;
   const articleId = navHistory[navHistoryIndex];
   state = { page: "knowledge-base", kb: { ...state.kb, articleId } };
+  mobileShowingContent = true;
   if (articleId) revealArticleInSidebar(articleId);
   render();
   if (articleId) scrollArticleRowIntoView(articleId);
+}
+
+// Below the mobile breakpoint (see the "@media (max-width: 720px)" rules
+// in style.css), the sidebar and the main panel are two separate screens
+// rather than side-by-side columns - this is which one's showing. Only
+// meaningful on mobile; ignored entirely by the desktop layout, which
+// always shows both, so nothing needs to guard reads/writes of it on the
+// wider layout's own behavior.
+let mobileShowingContent = false;
+
+// The mobile-only "Back to list" button in the article header (see
+// renderMainHeader) - swaps the screen back to the sidebar without
+// touching kb.articleId or navHistory, so the article itself is still
+// there (title, scroll position, browser-style back/forward) if the
+// reader taps back into it again from the list.
+function backToMobileList() {
+  mobileShowingContent = false;
+  render();
 }
 
 // Bookmarked articles persist across navigation/resets (unlike expand state,
@@ -205,7 +224,10 @@ function renderShell() {
       const pageId = btn.dataset.page as View["page"];
       if (pageId === state.page) return;
       state = pageId === "knowledge-base" ? { page: "knowledge-base", kb: emptyKbState() } : { page: pageId };
-      if (pageId === "knowledge-base") resetNavHistory(null);
+      if (pageId === "knowledge-base") {
+        resetNavHistory(null);
+        mobileShowingContent = false;
+      }
       render();
     });
   });
@@ -330,8 +352,12 @@ function wireTableOfContents() {
 }
 
 function renderKnowledgeBase(kb: KbState) {
+  // Below the mobile breakpoint, kb-layout--mobile-content picks which of
+  // the two panels below is the visible "screen" (see mobileShowingContent
+  // and the mobile rules in style.css); above it, both are always shown
+  // side by side regardless of this class.
   return `
-    <div class="kb-layout">
+    <div class="kb-layout${mobileShowingContent ? " kb-layout--mobile-content" : ""}">
       <div class="kb-panels-row">
         <div class="kb-sidebar-panel">
           ${renderSidebar(kb)}
@@ -349,12 +375,31 @@ const BOOKMARK_ICON_PATH = '<path d="m19 21-7-4-7 4V5a2 2 0 0 1 2-2h10a2 2 0 0 1
 const COPY_ICON = '<path d="M9 17H7A5 5 0 0 1 7 7h2"/><path d="M15 7h2a5 5 0 1 1 0 10h-2"/><line x1="8" y1="12" x2="16" y2="12"/>';
 const COPIED_ICON = '<polyline points="20 6 9 17 4 12"/>';
 
+// The header bar itself: left/middle/right. The middle holds a condensed
+// copy of the page's own title (see .article-title in the body) plus its
+// category underneath, hidden until the body scrolls past that real title
+// (.kb-main-article-header.is-scrolled, toggled from wireArticleHeaderBorder)
+// so it only shows up once the full-size title has scrolled out of view.
+function renderMainHeader(title: string, category?: string, bookmarkArticleId?: string) {
+  return `
+    <div class="kb-main-article-header">
+      <div class="kb-main-article-header-inner">
+        ${renderNavHistoryButtons()}
+        ${renderMobileBackButton()}
+        <div class="kb-main-article-header-middle">
+          <div class="kb-main-article-header-condensed-title">${escapeHtml(title)}</div>
+          ${category ? `<div class="kb-main-article-header-condensed-category">${escapeHtml(category)}</div>` : ""}
+        </div>
+        ${renderHeaderActions(bookmarkArticleId)}
+      </div>
+    </div>
+  `;
+}
+
 // Browser-style back/forward for whatever's been open in the main panel,
-// see navHistory. Sits at the very left of the header, as plain flex
-// children (no absolute positioning/reserved-width tricks needed once the
-// header stopped trying to keep its icons lined up with the body column
-// below it), so it renders identically across the article, FAQ, and
-// welcome-page headers.
+// see navHistory. Sits at the left of the header. Hidden below the mobile
+// breakpoint in favor of renderMobileBackButton, a linear undo/redo stack
+// doesn't fit the list/content two-screen layout there.
 function renderNavHistoryButtons() {
   const canGoBack = navHistoryIndex > 0;
   const canGoForward = navHistoryIndex < navHistory.length - 1;
@@ -367,6 +412,19 @@ function renderNavHistoryButtons() {
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
       </button>
     </div>
+  `;
+}
+
+// Only ever shown below the mobile breakpoint (see .kb-mobile-back-btn in
+// style.css), swapping the screen back to the sidebar list - see
+// backToMobileList. Doesn't touch kb.articleId or navHistory, so the
+// nav-history buttons above still reflect the real back/forward stack once
+// the layout's wide enough to show them again.
+function renderMobileBackButton() {
+  return `
+    <button type="button" class="kb-nav-history-btn kb-mobile-back-btn" data-mobile-back title="Back to list" aria-label="Back to list">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+    </button>
   `;
 }
 
@@ -393,6 +451,23 @@ function renderHeaderActions(bookmarkArticleId?: string) {
       <button type="button" class="kb-header-action-btn" data-copy-url title="Copy link" aria-label="Copy link">
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${COPY_ICON}</svg>
       </button>
+    </div>
+  `;
+}
+
+// Below the mobile breakpoint, the header splits into two: a slim title
+// bar up top (just .kb-main-article-header-middle, faded in on scroll same
+// as ever - the button groups inside .kb-main-article-header-inner are
+// hidden there, see style.css) and this toolbar, pinned to the bottom of
+// the main panel - in normal document flow rather than fixed positioning,
+// so it just naturally lands directly above the icon rail without needing
+// to know that rail's height. Reuses the same back/bookmark/copy buttons
+// as the desktop header; only one copy of each is ever visible at a time.
+function renderMobileActionsBar(bookmarkArticleId?: string) {
+  return `
+    <div class="kb-mobile-actions-bar">
+      ${renderMobileBackButton()}
+      ${renderHeaderActions(bookmarkArticleId)}
     </div>
   `;
 }
@@ -541,19 +616,10 @@ function renderMainBody(kb: KbState) {
   const openArticle = kb.articleId ? getAllArticlesFlat().find((a) => a.id === kb.articleId) : undefined;
 
   if (openArticle) {
-    const h = (text: string) => (hasActiveQuery(kb.query) ? highlightMatches(text, kb.query) : escapeHtml(text));
     return `
-      <div class="kb-main-article-header">
-        <div class="kb-main-article-header-inner">
-          ${renderNavHistoryButtons()}
-          <div class="kb-main-article-header-title-row article-column-row">
-            <span class="kb-main-article-title">${h(openArticle.title)}</span>
-            <div class="kb-main-article-header-toc-spacer" aria-hidden="true"></div>
-          </div>
-          ${renderHeaderActions(openArticle.id)}
-        </div>
-      </div>
+      ${renderMainHeader(openArticle.title, openArticle.categoryLabel, openArticle.id)}
       <div class="kb-main-article">${renderArticleBody(openArticle, kb.query)}</div>
+      ${renderMobileActionsBar(openArticle.id)}
     `;
   }
 
@@ -617,19 +683,11 @@ const FAQ_ITEMS: { question: string; answer: string }[] = [
 function renderFaqPage(query: string) {
   const h = (text: string) => (hasActiveQuery(query) ? highlightMatches(text, query) : escapeHtml(text));
   return `
-    <div class="kb-main-article-header">
-      <div class="kb-main-article-header-inner">
-        ${renderNavHistoryButtons()}
-        <div class="kb-main-article-header-title-row article-column-row">
-          <span class="kb-main-article-title">FAQ</span>
-          <div class="kb-main-article-header-toc-spacer" aria-hidden="true"></div>
-        </div>
-        ${renderHeaderActions()}
-      </div>
-    </div>
+    ${renderMainHeader("FAQ")}
     <div class="kb-main-article">
       <div class="article-reader-layout article-column-row">
         <div class="article-reader">
+          <h1 class="article-title">FAQ</h1>
           <p class="section-body">${h("Quick answers to the questions support staff get asked most often. For anything more detailed, search the Knowledge Base or open the relevant article directly.")}</p>
           ${FAQ_ITEMS.map(
             (item) => `
@@ -640,6 +698,7 @@ function renderFaqPage(query: string) {
         </div>
       </div>
     </div>
+    ${renderMobileActionsBar()}
   `;
 }
 
@@ -657,19 +716,11 @@ function renderKbWelcome() {
     .slice(0, 5);
 
   return `
-    <div class="kb-main-article-header">
-      <div class="kb-main-article-header-inner">
-        ${renderNavHistoryButtons()}
-        <div class="kb-main-article-header-title-row article-column-row">
-          <span class="kb-main-article-title">Welcome to the Knowledge Base</span>
-          <div class="kb-main-article-header-toc-spacer" aria-hidden="true"></div>
-        </div>
-        ${renderHeaderActions()}
-      </div>
-    </div>
+    ${renderMainHeader("Welcome to the Knowledge Base")}
     <div class="kb-main-article">
       <div class="article-reader-layout article-column-row">
         <div class="article-reader">
+          <h1 class="article-title">Welcome to the Knowledge Base</h1>
           <p class="section-body">
             This is FMO's internal knowledge base, the place shop-support staff look things up while on a call or helping a shop directly, whether that's how a feature works, what a setting does, or what to say when something's gone wrong.
           </p>
@@ -739,6 +790,7 @@ function renderKbWelcome() {
         </div>
       </div>
     </div>
+    ${renderMobileActionsBar()}
   `;
 }
 
@@ -761,6 +813,7 @@ function renderArticleBody(article: FlatArticle, query: string) {
   return `
     <div class="article-reader-layout article-column-row">
       <div class="article-reader">
+        <h1 class="article-title">${h(article.title)}</h1>
         ${content?.meta ? renderArticleMeta(content.meta, article.categoryLabel) : ""}
         ${blocksHtml}
         ${prevArticle || nextArticle ? renderArticlePagination(prevArticle, nextArticle) : ""}
@@ -1055,12 +1108,14 @@ function toggleCategory(categoryId: string) {
 function goToWelcome() {
   if (state.page !== "knowledge-base") return;
   state = { page: "knowledge-base", kb: { ...state.kb, articleId: null, query: "" } };
+  mobileShowingContent = true;
   recordNavHistory(null);
 }
 
 function goToFaq() {
   if (state.page !== "knowledge-base") return;
   state = { page: "knowledge-base", kb: { ...state.kb, articleId: FAQ_PAGE_ID, query: "" } };
+  mobileShowingContent = true;
   recordNavHistory(FAQ_PAGE_ID);
 }
 
@@ -1082,6 +1137,7 @@ function openArticle(articleId: string) {
     page: "knowledge-base",
     kb: { ...state.kb, articleId: article.id },
   };
+  mobileShowingContent = true;
   recordNavHistory(article.id);
 }
 
@@ -1163,6 +1219,10 @@ function wireContentEvents() {
 
   document.querySelectorAll<HTMLButtonElement>("[data-nav-forward]").forEach((btn) => {
     btn.addEventListener("click", () => goHistory(1));
+  });
+
+  document.querySelectorAll<HTMLButtonElement>("[data-mobile-back]").forEach((btn) => {
+    btn.addEventListener("click", backToMobileList);
   });
 
   document.querySelectorAll<HTMLButtonElement>("[data-category-card]").forEach((btn) => {

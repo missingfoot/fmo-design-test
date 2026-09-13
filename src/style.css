@@ -14,17 +14,12 @@
   --color-logout-bg: #fde2e2;
   --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 
-  /* Article reading column width, shared by the header title bar and the
-     scrolling body so both grow at the same breakpoint. The header no
-     longer tries to keep its icons lined up with the body's left edge
-     (that used a reserved-width gutter + absolutely-positioned icons,
-     removed as unnecessary complexity), so this is just a width now, not
-     a shared gutter/offset. */
-  --reader-width: 720px;
+  /* Article reading column width, shared by the header bar and the
+     scrolling body so both grow at the same breakpoint. */
+  --reader-width: 680px;
   --reader-gap: 48px; /* gap to the table-of-contents column */
   --toc-width: 200px;
   --reader-row-width-with-toc: calc(var(--reader-width) + var(--reader-gap) + var(--toc-width));
-  --reader-panel-padding: 32px; /* .kb-main-article / .kb-main-article-header side padding */
 }
 
 * {
@@ -567,8 +562,13 @@ button {
 .kb-main-article {
   flex: 1;
   min-height: 0;
-  padding: 24px var(--reader-panel-padding);
+  padding: 32px;
   overflow-y: auto;
+  /* Whether the TOC fits is about the actual space this panel has (which
+     depends on the sidebar's width, not just the viewport), so it's a
+     container query against this element rather than a viewport media
+     query - see the @container rule on .article-toc below. */
+  container-type: inline-size;
 }
 
 .kb-main-empty {
@@ -641,23 +641,13 @@ button {
   color: var(--color-text-muted);
 }
 
-/* Shared by the scrolling body (reading column + TOC column beside it at
-   the wide breakpoint) and the header's title row, so the title stays
-   lined up with the body text below it. The header's own back/forward and
-   copy/bookmark icon groups sit outside this row entirely (pinned to the
-   header bar's edges, see .kb-nav-history / .kb-header-actions), so they
-   never affect where this row centers. */
+/* Shared by every reading-column row (the article body, the FAQ page, the
+   welcome page), centered the same way so they all line up. */
 .article-column-row {
   display: flex;
   gap: var(--reader-gap);
   max-width: var(--reader-width);
   margin: 0 auto;
-}
-
-@media (min-width: 1600px) {
-  .article-column-row {
-    max-width: var(--reader-row-width-with-toc);
-  }
 }
 
 .article-reader-layout {
@@ -671,6 +661,25 @@ button {
   flex: 1 1 auto;
   min-width: 0;
   max-width: var(--reader-width);
+}
+
+/* Once there's room for the article (down to a 440px floor, narrower than
+   that and it's not worth it) plus the gap plus the TOC, turn the TOC on
+   (see .article-toc below) and let the row grow enough to fit all three -
+   the article itself already compresses for free above (flex 1 1 auto,
+   min-width overridden here), so this single threshold is what makes the
+   TOC survive much narrower panels than a fixed "show it above 1600px"
+   breakpoint would, instead of just vanishing outright. Keyed to this
+   panel's own width (container-type on .kb-main-article) rather than the
+   viewport, since the sidebar's width is what actually eats into it. */
+@container (min-width: 700px) {
+  .article-column-row {
+    max-width: var(--reader-row-width-with-toc);
+  }
+
+  .article-reader {
+    min-width: 440px;
+  }
 }
 
 /* Previous/next footer nav between articles, in the same flat order as
@@ -730,7 +739,7 @@ button {
   top: 0;
 }
 
-@media (min-width: 1600px) {
+@container (min-width: 700px) {
   .article-toc {
     display: block;
   }
@@ -767,6 +776,18 @@ button {
   border-left-color: var(--color-text);
 }
 
+/* Was the header bar's title (see .kb-main-article-header-inner); now just
+   the article's own heading, first in the reading column like any other
+   article-authored H1. */
+.article-title {
+  margin: 0;
+  font-weight: 700;
+  font-size: 32px;
+  line-height: 40px;
+  letter-spacing: -0.01em;
+  color: var(--color-text);
+}
+
 .article-meta {
   display: flex;
   flex-wrap: wrap;
@@ -799,7 +820,7 @@ button {
 
 .kb-main-article-header {
   flex: none;
-  padding: 0 32px;
+  padding: 0 12px;
   background: #ffffff;
   border-bottom: 1px solid transparent;
   transition: border-color 0.15s ease;
@@ -809,96 +830,103 @@ button {
   border-bottom-color: var(--color-border);
 }
 
-/* Back/forward and copy/bookmark are pinned to the left/right edges of
-   this bar (see .kb-nav-history / .kb-header-actions below); the title
-   row is the only normal-flow child, centered independently of them so
-   its own alignment never depends on how wide either icon group is. */
+/* Three plain sections: back/forward, an empty middle that just absorbs
+   the remaining space, and copy/bookmark. No title here any more (that
+   moved into the article body itself, see .article-title) and nothing
+   page-specific to keep aligned, so this is the same simple row on every
+   page - no reserved widths, no absolute positioning, no breakpoints. */
 .kb-main-article-header-inner {
-  position: relative;
-  padding-top: 20px;
-  padding-bottom: 20px;
-}
-
-/* The title row uses the same .article-column-row centering as the body
-   beneath it (same max-width, same margin: 0 auto), so the title still
-   lines up with the article text below it. Back/forward and copy/bookmark
-   are pinned to the outer edges of the full header bar instead of sitting
-   inside that centered row, so widening/narrowing either group never
-   shifts the title off that alignment. */
-.kb-main-article-header-title-row {
+  display: flex;
   align-items: center;
+  padding-top: 12px;
+  padding-bottom: 12px;
 }
 
-.kb-main-article-header-toc-spacer {
-  display: none;
-  flex: none;
-  width: var(--toc-width);
-}
-
-@media (min-width: 1600px) {
-  .kb-main-article-header-toc-spacer {
-    display: block;
-  }
-}
-
-.kb-main-article-title {
+.kb-main-article-header-middle {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   flex: 1 1 auto;
   min-width: 0;
+  padding: 0 12px;
+}
+
+/* Condensed title + category, standing in for the real .article-title
+   once it's scrolled out of view (toggled by .is-scrolled, see
+   wireArticleHeaderBorder). Hidden rather than removed so it can fade in
+   in place instead of popping in once the scroll threshold is crossed. */
+.kb-main-article-header-condensed-title,
+.kb-main-article-header-condensed-category {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0;
+  transform: translateY(2px);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.kb-main-article-header.is-scrolled .kb-main-article-header-condensed-title,
+.kb-main-article-header.is-scrolled .kb-main-article-header-condensed-category {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.kb-main-article-header-condensed-title {
   font-weight: 700;
-  font-size: 26px;
-  line-height: 32px;
-  letter-spacing: -0.01em;
+  font-size: 15px;
+  line-height: 20px;
   color: var(--color-text);
-  isolation: isolate;
+}
+
+.kb-main-article-header-condensed-category {
+  font-size: 12px;
+  line-height: 16px;
+  color: var(--color-text-muted);
 }
 
 .kb-nav-history,
 .kb-header-actions {
-  position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 8px;
 }
 
-.kb-nav-history {
-  left: 0;
-}
-
-.kb-header-actions {
-  right: 0;
-}
-
+/* button-tertiary, Size=condensed, Config=icon-only */
 .kb-nav-history-btn,
 .kb-header-action-btn {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 28px;
-  height: 28px;
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
   padding: 0;
-  background: none;
-  border: none;
+  background: #ffffff;
+  border: 1px solid var(--color-border);
   border-radius: 4px;
-  color: var(--color-text-muted);
+  color: var(--color-text-button);
 }
 
 .kb-nav-history-btn:hover:not(:disabled),
 .kb-header-action-btn:hover {
-  background: var(--color-bg-disabled);
-  color: var(--color-text);
+  background: var(--color-bg-workspace);
+  border-color: var(--color-border-hover);
+  color: var(--color-text-button);
 }
 
 .kb-nav-history-btn:disabled {
-  color: var(--color-border-disabled);
+  background: var(--color-bg-disabled);
+  border-color: var(--color-border-disabled);
+  color: var(--color-text-muted);
   cursor: default;
 }
 
 .kb-nav-history-btn svg,
 .kb-header-action-btn svg {
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
 }
 
 .kb-header-bookmark.is-bookmarked {
@@ -1023,4 +1051,270 @@ ul.section-body li {
 .kb-toast.is-visible {
   opacity: 1;
   transform: translate(-50%, 0);
+}
+
+/* Mobile back button (see renderMobileBackButton) and the bottom actions
+   toolbar it lives in below the mobile breakpoint (see
+   renderMobileActionsBar) - both only ever shown there, see the media
+   query at the bottom of this file. */
+.kb-mobile-back-btn,
+.kb-mobile-actions-bar {
+  display: none;
+}
+
+/* Mobile layout
+   ----------------------------------------------------------------------
+   Below this width the icon rail moves from a column on the left to a row
+   along the bottom (.crm-shell-context reordered after .knowledge-base in
+   the now-column .workspace), and the sidebar/main-panel stop being two
+   side-by-side columns and become two full-width "screens": the sidebar
+   list by default, swapping to the main panel once something's open (see
+   mobileShowingContent / .kb-layout--mobile-content, toggled from
+   renderKnowledgeBase) with the mobile back button (renderMobileBackButton)
+   swapping back. */
+@media (max-width: 720px) {
+  .app-shell {
+    min-width: 0;
+  }
+
+  .workspace {
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  /* No padding here any more - it was leaving a gap above the rail and
+     insetting its border-top from the screen edges. The rail's own
+     padding (on .navigation below) still keeps the icons themselves off
+     the edges; this wrapper is just flush now. */
+  .crm-shell-context {
+    order: 2;
+    flex-direction: row;
+    width: auto;
+    min-width: 0;
+    padding: 0;
+  }
+
+  .navigation {
+    flex-direction: row;
+    justify-content: space-between;
+    width: auto;
+    min-width: 0;
+    padding: 8px 12px;
+  }
+
+  .navigation-top {
+    flex: 1;
+    flex-direction: row;
+    align-items: center;
+    gap: 16px;
+    width: auto;
+    min-width: 0;
+  }
+
+  /* Was a full-width column header with its own border-bottom separating
+     it from the icons below - here it's just the leftmost item in the bar,
+     so drop the separator and let it size to the logomark itself. */
+  .navigation-logo {
+    width: auto;
+    padding-bottom: 0;
+    margin-bottom: 0;
+    border-bottom: none;
+  }
+
+  /* Fills the rest of the bar between the logo and the avatar, spreading
+     the icons evenly across it rather than clustering them to one side. */
+  .navigation-items {
+    flex: 1;
+    min-width: 0;
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-evenly;
+    gap: 8px;
+  }
+
+  /* Below the min-width chain above lets the icons shrink instead of the
+     row overflowing (which is what was forcing a horizontal scrollbar):
+     each icon is free to compress down from its desktop 48px square, and
+     the image inside scales along with its button instead of staying
+     pinned at a fixed 40px and blowing back out past it. */
+  .nav-icon {
+    flex: 0 1 48px;
+    min-width: 32px;
+    width: auto;
+  }
+
+  .nav-icon img {
+    width: 100%;
+    height: 100%;
+    max-width: 40px;
+    max-height: 40px;
+  }
+
+  /* Same red edge accent as the desktop rail (see .nav-icon.is-active::before
+     above), just rotated: flush against the bottom of the bar instead of
+     the left, reaching through .navigation's own bottom padding the same
+     way the desktop version reaches through its left padding/border. */
+  .nav-icon.is-active::before {
+    top: auto;
+    bottom: -6px;
+    left: 8px;
+    right: 8px;
+    width: auto;
+    height: 4px;
+    border-radius: 100px;
+  }
+
+  /* Hidden rather than repositioned: touch has no hover to trigger them
+     anyway, and being generated content, they're laid out (just invisible)
+     even while opacity: 0 - each one was wide enough, and each icon narrow
+     and close enough to the screen edge once compressed, to widen the
+     whole page's scrollable area and force a sideways scrollbar even
+     though nothing was ever visibly overflowing. */
+  .nav-icon::after {
+    display: none;
+  }
+
+  /* Logout isn't part of this prototype's scope anywhere else either (see
+     the comment on renderShell's logout button); on the bottom bar it's
+     just not worth the space the avatar target takes up. */
+  .nav-user {
+    display: none;
+  }
+
+  /* Flatten the floating rounded "island" panels (border + radius, see
+     .navigation / .kb-sidebar-panel / .kb-main-panel / .knowledge-base-panel)
+     into flush, edge-to-edge sections - a floating card reads as a stray
+     gap once the screen's too narrow to show it as an actual island beside
+     anything else. The rail keeps a single top border in place of its full
+     border, as the one seam that still needs to separate it from the
+     content above. */
+  .knowledge-base {
+    padding: 0;
+  }
+
+  .kb-main-article {
+    padding: 12px;
+  }
+
+  /* 32px rows are fine for a mouse pointer, not for a fingertip - bump the
+     tap target closer to the ~44px usually recommended for touch. */
+  .kb-tree-row {
+    height: 44px;
+    padding: 0 12px;
+  }
+
+  .kb-tree-row--article {
+    padding-left: 18px;
+  }
+
+  .kb-sidebar-heading {
+    font-size: 24px;
+    line-height: 30px;
+  }
+
+  .kb-search-bar {
+    height: 44px;
+  }
+
+  .navigation {
+    border: none;
+    border-top: 1px solid var(--color-border);
+    border-radius: 0;
+  }
+
+  .kb-sidebar-panel,
+  .kb-main-panel,
+  .knowledge-base-panel {
+    border: none;
+    border-radius: 0;
+  }
+
+  .kb-sidebar-panel {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .kb-main-panel {
+    display: none;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .kb-layout--mobile-content .kb-sidebar-panel {
+    display: none;
+  }
+
+  .kb-layout--mobile-content .kb-main-panel {
+    display: flex;
+  }
+
+  /* The top bar keeps only the condensed title/category (see
+     .kb-main-article-header-middle) - its button groups move down into
+     .kb-mobile-actions-bar instead, so hide both copies here specifically
+     rather than hiding .kb-mobile-back-btn/.kb-header-actions everywhere,
+     which would also hide the bottom bar's copies. */
+  .kb-nav-history,
+  .kb-main-article-header-inner .kb-mobile-back-btn,
+  .kb-main-article-header-inner .kb-header-actions {
+    display: none;
+  }
+
+  /* With the button groups gone, all that's left up here is the condensed
+     title/category - and that stays invisible (opacity: 0) until scrolled
+     (see .kb-main-article-header.is-scrolled), but the bar was still
+     reserving its full height for it the whole time, pushing the real
+     content down by a blank gap before the reader ever scrolled. Collapse
+     it to nothing until there's actually something in it to show. */
+  .kb-main-article-header {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.15s ease, border-color 0.15s ease;
+  }
+
+  .kb-main-article-header.is-scrolled {
+    max-height: 64px;
+  }
+
+  /* Pinned to the bottom of the main panel, in normal flow rather than
+     position: fixed - .kb-main-panel is already a column flex container
+     ending in this bar, which is already stacked directly above the icon
+     rail (.crm-shell-context), so it lands in the right place for free. */
+  .kb-mobile-actions-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex: none;
+    padding: 8px 12px;
+    border-top: 1px solid var(--color-border);
+    background: #ffffff;
+  }
+
+  .kb-mobile-actions-bar .kb-mobile-back-btn {
+    display: flex;
+  }
+
+  /* Previous/next side by side needs more width than a phone-width column
+     has to spare without squashing both titles - stack them instead. */
+  .article-pagination {
+    flex-direction: column;
+  }
+
+  .article-pagination-link {
+    flex: none;
+    width: 100%;
+  }
+
+  /* Category / "Written by" / Published / Updated wrapping mid-line onto
+     however many rows happen to fit reads as broken rather than helpful at
+     phone width - one item per line instead, dots dropped since they only
+     made sense as inline separators. */
+  .article-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .article-meta-sep {
+    display: none;
+  }
 }
