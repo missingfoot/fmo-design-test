@@ -803,6 +803,14 @@ button {
   line-height: 40px;
   letter-spacing: -0.01em;
   color: var(--color-text);
+  /* Highlighted search matches (.kb-highlight) rely on a negative z-index
+     plus isolation: isolate on their container to sit behind the
+     surrounding text without sinking behind the article panel's own
+     background - missing here, same as every other place a match can
+     render (.kb-tree-label, .section-heading, .section-body), a
+     highlighted word in the title was dropping behind that background
+     and disappearing instead of just showing through it. */
+  isolation: isolate;
 }
 
 .article-meta {
