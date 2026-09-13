@@ -1,0 +1,17 @@
+<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+<rect x="12.5" y="4.5" width="15" height="15" rx="1.5" fill="#FDE2E2" stroke="#D82B31"/>
+<rect x="13.5" y="5.5" width="13" height="13" rx="0.5" fill="#FDE2E2" stroke="white"/>
+<rect x="15" y="5.99995" width="1" height="1" transform="rotate(90 15 5.99995)" fill="#D82B31"/>
+<rect x="26" y="5.99995" width="1" height="1" transform="rotate(90 26 5.99995)" fill="#D82B31"/>
+<rect x="17" y="8.99995" width="1" height="2" fill="#D82B31"/>
+<rect x="22" y="8.99995" width="1" height="2" fill="#D82B31"/>
+<rect x="22" y="7.99995" width="1" height="4" transform="rotate(90 22 7.99995)" fill="#D82B31"/>
+<rect x="22" y="11" width="1" height="3" transform="rotate(90 22 11)" fill="#D82B31"/>
+<rect x="20" y="12" width="2" height="1" transform="rotate(90 20 12)" fill="#D82B31"/>
+<rect x="20" y="15" width="1" height="1" transform="rotate(90 20 15)" fill="#D82B31"/>
+<rect x="10" y="26" width="20" height="11" fill="#EDE3FC" stroke="#D82B31"/>
+<rect x="6.5" y="17.5" width="27" height="9" rx="1.5" fill="#EDE3FC" stroke="#D82B31"/>
+<rect x="14" y="18" width="6" height="8" fill="white"/>
+<rect x="15" y="27" width="6" height="10" fill="white"/>
+<path d="M4 37H36" stroke="#D82B31" stroke-linecap="round"/>
+</svg>
