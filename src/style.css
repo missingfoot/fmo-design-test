@@ -1070,12 +1070,9 @@ ul.section-body li {
   transform: translate(-50%, 0);
 }
 
-/* Mobile back button (see renderMobileBackButton) and the bottom actions
-   toolbar it lives in below the mobile breakpoint (see
-   renderMobileActionsBar) - both only ever shown there, see the media
-   query at the bottom of this file. */
-.kb-mobile-back-btn,
-.kb-mobile-actions-bar {
+/* Mobile back button (see renderMobileBackButton) - only ever shown below
+   the mobile breakpoint, see the media query at the bottom of this file. */
+.kb-mobile-back-btn {
   display: none;
 }
 
@@ -1267,49 +1264,24 @@ ul.section-body li {
     display: flex;
   }
 
-  /* The top bar keeps only the condensed title/category (see
-     .kb-main-article-header-middle) - its button groups move down into
-     .kb-mobile-actions-bar instead, so hide both copies here specifically
-     rather than hiding .kb-mobile-back-btn/.kb-header-actions everywhere,
-     which would also hide the bottom bar's copies. */
-  .kb-nav-history,
-  .kb-main-article-header-inner .kb-mobile-back-btn,
-  .kb-main-article-header-inner .kb-header-actions {
+  /* One bar, not two: the browser-style back/forward pair still doesn't
+     fit the list/content two-screen layout (see .kb-mobile-back-btn), but
+     its replacement and the bookmark button stay right here with the
+     title instead of moving to a separate bottom bar - simpler, and one
+     less bar competing with the icon rail for space at the bottom of a
+     small screen. Copy-link drops out on mobile (native share/copy from
+     the address bar covers it); it only reappears where there's no
+     bookmark button to take its place (FAQ/welcome). */
+  .kb-nav-history {
     display: none;
   }
 
-  /* With the button groups gone, all that's left up here is the condensed
-     title/category - and that stays invisible (opacity: 0) until scrolled
-     (see .kb-main-article-header.is-scrolled), but the bar was still
-     reserving its full height for it the whole time, pushing the real
-     content down by a blank gap before the reader ever scrolled. Collapse
-     it to nothing until there's actually something in it to show. */
-  .kb-main-article-header {
-    max-height: 0;
-    overflow: hidden;
-    transition: max-height 0.15s ease, border-color 0.15s ease;
-  }
-
-  .kb-main-article-header.is-scrolled {
-    max-height: 64px;
-  }
-
-  /* Pinned to the bottom of the main panel, in normal flow rather than
-     position: fixed - .kb-main-panel is already a column flex container
-     ending in this bar, which is already stacked directly above the icon
-     rail (.crm-shell-context), so it lands in the right place for free. */
-  .kb-mobile-actions-bar {
+  .kb-mobile-back-btn {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    flex: none;
-    padding: 8px 12px;
-    border-top: 1px solid var(--color-border);
-    background: #ffffff;
   }
 
-  .kb-mobile-actions-bar .kb-mobile-back-btn {
-    display: flex;
+  .kb-header-actions:has(.kb-header-bookmark) [data-copy-url] {
+    display: none;
   }
 
   /* Previous/next side by side needs more width than a phone-width column

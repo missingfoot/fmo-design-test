@@ -455,23 +455,6 @@ function renderHeaderActions(bookmarkArticleId?: string) {
   `;
 }
 
-// Below the mobile breakpoint, the header splits into two: a slim title
-// bar up top (just .kb-main-article-header-middle, faded in on scroll same
-// as ever - the button groups inside .kb-main-article-header-inner are
-// hidden there, see style.css) and this toolbar, pinned to the bottom of
-// the main panel - in normal document flow rather than fixed positioning,
-// so it just naturally lands directly above the icon rail without needing
-// to know that rail's height. Reuses the same back/bookmark/copy buttons
-// as the desktop header; only one copy of each is ever visible at a time.
-function renderMobileActionsBar(bookmarkArticleId?: string) {
-  return `
-    <div class="kb-mobile-actions-bar">
-      ${renderMobileBackButton()}
-      ${renderHeaderActions(bookmarkArticleId)}
-    </div>
-  `;
-}
-
 // Below this many characters, typing hasn't narrowed anything down yet, at
 // 1-2 letters almost every article would match something, which reads as
 // broken rather than helpful. 3 letters is enough for a short acronym
@@ -619,7 +602,6 @@ function renderMainBody(kb: KbState) {
     return `
       ${renderMainHeader(openArticle.title, openArticle.categoryLabel, openArticle.id)}
       <div class="kb-main-article">${renderArticleBody(openArticle, kb.query)}</div>
-      ${renderMobileActionsBar(openArticle.id)}
     `;
   }
 
@@ -698,7 +680,6 @@ function renderFaqPage(query: string) {
         </div>
       </div>
     </div>
-    ${renderMobileActionsBar()}
   `;
 }
 
@@ -790,7 +771,6 @@ function renderKbWelcome() {
         </div>
       </div>
     </div>
-    ${renderMobileActionsBar()}
   `;
 }
 
