@@ -34,24 +34,54 @@ let state: View = { page: "knowledge-base", kb: emptyKbState() };
 // actually been. Navigating to a new page discards any forward history
 // past the current point, same as a real browser; going back/forward
 // itself doesn't re-record a new entry.
+//
+// Also wired into the actual browser session history (pushState/popstate,
+// see recordHistoryEntry and the popstate listener below): without that,
+// this was purely an in-app model the real back/forward buttons and the
+// OS-level swipe-back gesture knew nothing about, so a swipe back while
+// reading an article left the site entirely instead of stepping back
+// through it the way any other browser navigation would.
 let navHistory: (string | null)[] = [null];
 let navHistoryIndex = 0;
+
+// Each entry's real history.state only needs to carry an index into
+// navHistory - the array itself lives in memory and only ever grows
+// forward from the current point (same as navHistory/navHistoryIndex
+// above), so the index alone is enough for the popstate handler to know
+// exactly which entry to restore.
+interface NavHistoryState {
+  kbNavIndex: number;
+}
+
+function recordHistoryEntry(replace: boolean) {
+  const historyState: NavHistoryState = { kbNavIndex: navHistoryIndex };
+  if (replace) {
+    history.replaceState(historyState, "", location.href);
+  } else {
+    history.pushState(historyState, "", location.href);
+  }
+}
 
 function recordNavHistory(articleId: string | null) {
   if (navHistory[navHistoryIndex] === articleId) return;
   navHistory = navHistory.slice(0, navHistoryIndex + 1);
   navHistory.push(articleId);
   navHistoryIndex = navHistory.length - 1;
+  recordHistoryEntry(false);
 }
 
 function resetNavHistory(articleId: string | null) {
   navHistory = [articleId];
   navHistoryIndex = 0;
+  recordHistoryEntry(true);
 }
 
-function goHistory(delta: -1 | 1) {
+// Applies a navHistory move (to targetIndex) to app state - shared by the
+// in-app back/forward buttons (via history.back()/forward() below, which
+// re-enters here through the popstate listener) and a real swipe-back
+// gesture landing on one of our pushed entries.
+function applyNavHistoryIndex(targetIndex: number) {
   if (state.page !== "knowledge-base") return;
-  const targetIndex = navHistoryIndex + delta;
   if (targetIndex < 0 || targetIndex >= navHistory.length) return;
   navHistoryIndex = targetIndex;
   const articleId = navHistory[navHistoryIndex];
@@ -61,6 +91,25 @@ function goHistory(delta: -1 | 1) {
   render();
   if (articleId) scrollArticleRowIntoView(articleId);
 }
+
+// The in-app back/forward buttons now just ask the real browser history to
+// move, the same as a swipe-back gesture or the browser's own buttons
+// would - popstate below is what actually applies the resulting state, so
+// all three paths stay in sync automatically instead of the in-app model
+// drifting from the real one.
+function goHistory(delta: -1 | 1) {
+  if (state.page !== "knowledge-base") return;
+  const targetIndex = navHistoryIndex + delta;
+  if (targetIndex < 0 || targetIndex >= navHistory.length) return;
+  if (delta === -1) history.back();
+  else history.forward();
+}
+
+window.addEventListener("popstate", (e) => {
+  const historyState = e.state as NavHistoryState | null;
+  if (!historyState || typeof historyState.kbNavIndex !== "number") return;
+  applyNavHistoryIndex(historyState.kbNavIndex);
+});
 
 // Below the mobile breakpoint (see the "@media (max-width: 720px)" rules
 // in style.css), the sidebar and the main panel are two separate screens
@@ -1280,5 +1329,9 @@ function clearFilter() {
   document.getElementById(SEARCH_INPUT_ID)?.focus();
 }
 
+// Seeds the real browser history with the initial entry (navHistory
+// already starts as [null] at index 0, see above) so the very first
+// recordNavHistory push has a matching entry underneath it to pop back to.
+recordHistoryEntry(true);
 renderShell();
 render();
