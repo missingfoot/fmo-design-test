@@ -44,17 +44,24 @@ let state: View = { page: "knowledge-base", kb: emptyKbState() };
 let navHistory: (string | null)[] = [null];
 let navHistoryIndex = 0;
 
-// Each entry's real history.state only needs to carry an index into
-// navHistory - the array itself lives in memory and only ever grows
-// forward from the current point (same as navHistory/navHistoryIndex
-// above), so the index alone is enough for the popstate handler to know
-// exactly which entry to restore.
+// Each real history entry carries both an index into navHistory (the array
+// itself lives in memory and only ever grows forward from the current
+// point, same as navHistory/navHistoryIndex above, so the index alone is
+// enough to know which article/page it points at) and whether the mobile
+// list or the content screen was showing at that point (see
+// mobileShowingContent below) - that second one can't just be derived from
+// the index, since entering content can happen without navHistory's own
+// array actually changing (e.g. tapping "Getting Started" is a no-op for
+// navHistory if you're already sitting on its initial null entry, but it's
+// still very much a real list -> content transition that needs its own
+// step in the back stack).
 interface NavHistoryState {
   kbNavIndex: number;
+  showingContent: boolean;
 }
 
 function recordHistoryEntry(replace: boolean) {
-  const historyState: NavHistoryState = { kbNavIndex: navHistoryIndex };
+  const historyState: NavHistoryState = { kbNavIndex: navHistoryIndex, showingContent: mobileShowingContent };
   if (replace) {
     history.replaceState(historyState, "", location.href);
   } else {
@@ -62,12 +69,19 @@ function recordHistoryEntry(replace: boolean) {
   }
 }
 
-function recordNavHistory(articleId: string | null) {
-  if (navHistory[navHistoryIndex] === articleId) return;
-  navHistory = navHistory.slice(0, navHistoryIndex + 1);
-  navHistory.push(articleId);
-  navHistoryIndex = navHistory.length - 1;
-  recordHistoryEntry(false);
+// forcePush covers exactly that "no-op for navHistory, but not for the
+// list/content screen" case above - callers pass it whenever this call is
+// the one flipping mobileShowingContent from false to true, so the
+// transition still gets a real history entry underneath it even when the
+// article/page id itself didn't change.
+function recordNavHistory(articleId: string | null, forcePush = false) {
+  const changed = navHistory[navHistoryIndex] !== articleId;
+  if (changed) {
+    navHistory = navHistory.slice(0, navHistoryIndex + 1);
+    navHistory.push(articleId);
+    navHistoryIndex = navHistory.length - 1;
+  }
+  if (changed || forcePush) recordHistoryEntry(false);
 }
 
 function resetNavHistory(articleId: string | null) {
@@ -76,17 +90,17 @@ function resetNavHistory(articleId: string | null) {
   recordHistoryEntry(true);
 }
 
-// Applies a navHistory move (to targetIndex) to app state - shared by the
-// in-app back/forward buttons (via history.back()/forward() below, which
-// re-enters here through the popstate listener) and a real swipe-back
-// gesture landing on one of our pushed entries.
-function applyNavHistoryIndex(targetIndex: number) {
+// Applies a navHistory move (to targetIndex/showingContent) to app state -
+// shared by the in-app back/forward buttons (via history.back()/forward()
+// below, which re-enters here through the popstate listener) and a real
+// swipe-back gesture landing on one of our pushed entries.
+function applyNavHistoryIndex(targetIndex: number, showingContent: boolean) {
   if (state.page !== "knowledge-base") return;
   if (targetIndex < 0 || targetIndex >= navHistory.length) return;
   navHistoryIndex = targetIndex;
   const articleId = navHistory[navHistoryIndex];
   state = { page: "knowledge-base", kb: { ...state.kb, articleId } };
-  mobileShowingContent = true;
+  mobileShowingContent = showingContent;
   if (articleId) revealArticleInSidebar(articleId);
   render();
   if (articleId) scrollArticleRowIntoView(articleId);
@@ -108,7 +122,7 @@ function goHistory(delta: -1 | 1) {
 window.addEventListener("popstate", (e) => {
   const historyState = e.state as NavHistoryState | null;
   if (!historyState || typeof historyState.kbNavIndex !== "number") return;
-  applyNavHistoryIndex(historyState.kbNavIndex);
+  applyNavHistoryIndex(historyState.kbNavIndex, !!historyState.showingContent);
 });
 
 // Below the mobile breakpoint (see the "@media (max-width: 720px)" rules
@@ -123,9 +137,15 @@ let mobileShowingContent = false;
 // renderMainHeader) - swaps the screen back to the sidebar without
 // touching kb.articleId or navHistory, so the article itself is still
 // there (title, scroll position, browser-style back/forward) if the
-// reader taps back into it again from the list.
+// reader taps back into it again from the list. Still pushes its own real
+// history entry (same kbNavIndex, showingContent: false) so a swipe-back
+// gesture from here goes one step further back rather than skipping past
+// "list" entirely, and so re-opening from the list correctly gets a fresh
+// push of its own (see recordNavHistory's forcePush) instead of colliding
+// with this one.
 function backToMobileList() {
   mobileShowingContent = false;
+  recordHistoryEntry(false);
   render();
 }
 
@@ -219,6 +239,16 @@ const MAIN_ARTICLE_SELECTOR = ".kb-main-panel .kb-main-article";
 // sidebar category) still preserves the reader's scroll position.
 let lastMainArticleId: string | null = null;
 
+// Per-article scroll position, stashed on the way out of each one (see
+// render()) so navigating back to something already read - via the
+// header's back button, a swipe-back gesture, or just clicking it again in
+// the sidebar - resumes where the reader left off instead of dropping them
+// back at the top. A brand new article was never stashed, so it still
+// falls through to the normal top-of-page start; this only ever adds a
+// restore for articles that already have an entry here, it never changes
+// the "new article always starts at the top" behavior above.
+const articleScrollPositions = new Map<string | null, number>();
+
 // The header/logo/nav rail never actually change shape, only a couple of
 // text/class details on them do. Building them once and updating those
 // details in place (rather than tearing down and recreating every element,
@@ -274,8 +304,8 @@ function renderShell() {
       if (pageId === state.page) return;
       state = pageId === "knowledge-base" ? { page: "knowledge-base", kb: emptyKbState() } : { page: pageId };
       if (pageId === "knowledge-base") {
-        resetNavHistory(null);
         mobileShowingContent = false;
+        resetNavHistory(null);
       }
       render();
     });
@@ -317,6 +347,14 @@ function render() {
     btn.classList.toggle("is-active", btn.dataset.page === state.page);
   });
 
+  // Stash the outgoing article's scroll position (mainScroll, captured
+  // above before the content underneath it is replaced) before leaving it,
+  // keyed by the article we're leaving rather than the one we're headed
+  // to - see articleScrollPositions.
+  if (currentArticleId !== lastMainArticleId && mainScroll !== null) {
+    articleScrollPositions.set(lastMainArticleId, mainScroll);
+  }
+
   const content = document.getElementById("kb-content")!;
   content.innerHTML =
     state.page === "knowledge-base" ? renderKnowledgeBase(state.kb) : renderPlaceholderPage(currentPage);
@@ -326,6 +364,9 @@ function render() {
   restoreScroll(SIDEBAR_LIST_SELECTOR, sidebarScroll);
   if (currentArticleId === lastMainArticleId) {
     restoreScroll(MAIN_ARTICLE_SELECTOR, mainScroll);
+  } else {
+    const savedScroll = articleScrollPositions.get(currentArticleId);
+    if (savedScroll !== undefined) restoreScroll(MAIN_ARTICLE_SELECTOR, savedScroll);
   }
   lastMainArticleId = currentArticleId;
   wireArticleHeaderBorder();
@@ -1136,16 +1177,18 @@ function toggleCategory(categoryId: string) {
 
 function goToWelcome() {
   if (state.page !== "knowledge-base") return;
+  const wasShowingContent = mobileShowingContent;
   state = { page: "knowledge-base", kb: { ...state.kb, articleId: null, query: "" } };
   mobileShowingContent = true;
-  recordNavHistory(null);
+  recordNavHistory(null, !wasShowingContent);
 }
 
 function goToFaq() {
   if (state.page !== "knowledge-base") return;
+  const wasShowingContent = mobileShowingContent;
   state = { page: "knowledge-base", kb: { ...state.kb, articleId: FAQ_PAGE_ID, query: "" } };
   mobileShowingContent = true;
-  recordNavHistory(FAQ_PAGE_ID);
+  recordNavHistory(FAQ_PAGE_ID, !wasShowingContent);
 }
 
 function browseCategory(categoryId: string) {
@@ -1159,6 +1202,7 @@ function openArticle(articleId: string) {
   if (state.page !== "knowledge-base") return;
   const article = getAllArticlesFlat().find((a) => a.id === articleId);
   if (!article) return;
+  const wasShowingContent = mobileShowingContent;
   // Deliberately doesn't auto-expand the article's real category, opening
   // it from Bookmarks (or a filtered result) shouldn't also force it open and
   // highlighted a second time somewhere else in the tree.
@@ -1167,7 +1211,7 @@ function openArticle(articleId: string) {
     kb: { ...state.kb, articleId: article.id },
   };
   mobileShowingContent = true;
-  recordNavHistory(article.id);
+  recordNavHistory(article.id, !wasShowingContent);
 }
 
 // Expands the article's real category in the sidebar tree (used for entry
