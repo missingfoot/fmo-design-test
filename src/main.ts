@@ -233,11 +233,40 @@ const SEARCH_INPUT_ID = "kb-search";
 const SIDEBAR_LIST_SELECTOR = ".kb-sidebar-panel .kb-tree";
 const MAIN_ARTICLE_SELECTOR = ".kb-main-panel .kb-main-article";
 
+// Must match style.css's "@media (max-width: 720px)" - the width below
+// which the sidebar and main panel become swappable full-width screens
+// (see mobileShowingContent) instead of side-by-side columns.
+const MOBILE_LAYOUT_QUERY = "(max-width: 720px)";
+
+// The sidebar is only ever actually hidden (display: none, via
+// .kb-layout--mobile-content) below the mobile breakpoint while content is
+// showing instead of the list - on desktop it's always visible regardless
+// of mobileShowingContent.
+function isSidebarVisible(): boolean {
+  return !window.matchMedia(MOBILE_LAYOUT_QUERY).matches || !mobileShowingContent;
+}
+
 // Tracks which article was open on the previous render so switching to a
 // different (or no) article always opens scrolled to the top, while
 // re-rendering for an unrelated reason (typing in the filter, toggling a
 // sidebar category) still preserves the reader's scroll position.
 let lastMainArticleId: string | null = null;
+
+// Whether the sidebar was visible on the previous render - see
+// isSidebarVisible and its use in render(). Reading isSidebarVisible()
+// itself inside render() would already reflect this render's new
+// mobileShowingContent, one render too late to catch the exact moment the
+// sidebar is about to be hidden (or was just revealed), which is precisely
+// when its scroll position needs capturing (or restoring).
+let sidebarWasVisible = true;
+
+// The sidebar list's own scroll position, stashed right as it's about to
+// be hidden (see isSidebarVisible/sidebarWasVisible) rather than on every
+// render, since setting scrollTop on a display: none element is unreliable
+// - many browsers silently drop the write, which was quietly resetting
+// this to 0 and was the reason a swipe-back to the list snapped it to the
+// top even though the reader had scrolled down before opening an article.
+let sidebarScrollPosition: number | null = null;
 
 // Per-article scroll position, stashed on the way out of each one (see
 // render()) so navigating back to something already read - via the
@@ -339,13 +368,21 @@ function renderShell() {
 function render() {
   const currentPage = navPages.find((p) => p.id === state.page)!;
   const focusInfo = captureSearchFocus();
-  const sidebarScroll = captureScroll(SIDEBAR_LIST_SELECTOR);
+  const capturedSidebarScroll = captureScroll(SIDEBAR_LIST_SELECTOR);
   const mainScroll = captureScroll(MAIN_ARTICLE_SELECTOR);
   const currentArticleId = state.page === "knowledge-base" ? state.kb.articleId : null;
 
   document.querySelectorAll<HTMLButtonElement>(".nav-icon").forEach((btn) => {
     btn.classList.toggle("is-active", btn.dataset.page === state.page);
   });
+
+  // Only trust a captured scroll position if the sidebar was actually
+  // visible a moment ago (see sidebarWasVisible/sidebarScrollPosition) -
+  // captured while hidden, it's not a real position, it's whatever
+  // scrollTop happened to be silently left at.
+  if (sidebarWasVisible && capturedSidebarScroll !== null) {
+    sidebarScrollPosition = capturedSidebarScroll;
+  }
 
   // Stash the outgoing article's scroll position (mainScroll, captured
   // above before the content underneath it is replaced) before leaving it,
@@ -361,7 +398,9 @@ function render() {
 
   wireContentEvents();
   restoreSearchFocus(focusInfo);
-  restoreScroll(SIDEBAR_LIST_SELECTOR, sidebarScroll);
+  if (isSidebarVisible()) {
+    restoreScroll(SIDEBAR_LIST_SELECTOR, sidebarScrollPosition);
+  }
   if (currentArticleId === lastMainArticleId) {
     restoreScroll(MAIN_ARTICLE_SELECTOR, mainScroll);
   } else {
@@ -369,6 +408,7 @@ function render() {
     if (savedScroll !== undefined) restoreScroll(MAIN_ARTICLE_SELECTOR, savedScroll);
   }
   lastMainArticleId = currentArticleId;
+  sidebarWasVisible = isSidebarVisible();
   wireArticleHeaderBorder();
   wireTableOfContents();
 }
