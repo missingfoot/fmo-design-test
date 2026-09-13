@@ -4,6 +4,14 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/assets/logo.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- The page is always a light UI regardless of the OS's dark mode
+         setting (no dark theme built), so tell the browser that explicitly
+         rather than let it guess - without these, a phone in system dark
+         mode could tint the address bar/UI chrome dark even though the
+         page itself is solid white. color-scheme covers Safari's own
+         chrome-tinting logic; theme-color pins the actual bar color. -->
+    <meta name="color-scheme" content="light" />
+    <meta name="theme-color" content="#ffffff" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

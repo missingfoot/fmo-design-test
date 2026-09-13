@@ -1,4 +1,9 @@
 :root {
+  /* Always a light UI - no dark theme built - so opt out of following the
+     OS's dark mode preference rather than let the browser guess (form
+     controls, scrollbars, and Safari's own chrome-tinting all read this).
+     Paired with the theme-color/color-scheme meta tags in index.html. */
+  color-scheme: light;
   --color-red: #d82b31;
   --color-text: #1e1a1a;
   --color-text-muted: #858585;
